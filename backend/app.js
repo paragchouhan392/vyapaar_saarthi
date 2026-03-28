@@ -8,6 +8,8 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const portfolioRoutes = require('./routes/portfolioRoutes');
+const schemeRoutes = require('./routes/schemeRoutes');
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use(apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/schemes', schemeRoutes);
 
 // Base route for health check
 app.get('/', (req, res) => {
