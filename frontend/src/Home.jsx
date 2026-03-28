@@ -1,6 +1,10 @@
 
 
+import { useNavigate } from "react-router-dom";
+
 const Home = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen text-white bg-gradient-to-br from-green-900 via-teal-800 to-green-700 w-full">
 
@@ -13,10 +17,15 @@ const Home = () => {
           <a href="#">Features</a>
           <a href="#">Integrations</a>
         </div>
-
-        <button className="bg-white text-black px-4 py-2 rounded-lg text-sm">
-          Register Now!!
-        </button>
+        
+        <div className="flex gap-4">
+          <button onClick={() => navigate("/login")} className="hover:underline text-sm font-semibold">
+            Log In
+          </button>
+          <button onClick={() => navigate("/register")} className="bg-white text-black font-semibold px-4 py-2 rounded-lg text-sm">
+            Register Now!!
+          </button>
+        </div>
       </nav>
 
       {/* 🔥 Hero Section */}
