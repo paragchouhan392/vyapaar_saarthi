@@ -1,5 +1,37 @@
 const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const User = require('../models/User');
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
+// @desc    Test Gemini API
+// @route   POST /api/ai/test-gemini
+// @access  Public
+const testGemini = async (req, res, next) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt) {
+      res.status(400);
+      throw new Error('Please provide a prompt to test');
+    }
+
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Gemini API test successful',
+      prompt: prompt,
+      response: text
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // @desc    Analyze financial data via AI service
 // @route   POST /api/ai/analyze
@@ -47,5 +79,6 @@ const analyzeFinancials = async (req, res, next) => {
 };
 
 module.exports = {
+  testGemini,
   analyzeFinancials
 };
