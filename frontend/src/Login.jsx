@@ -1,24 +1,28 @@
 import { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { login as loginAPI } from "./services/authService";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
-  const [error, setError] = useState("");
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true); setError("");
     try {
-      // Connect specifically to our backend port
-      const res = await axios.post("http://localhost:5000/api/auth/login", formData);
+      const res = await loginAPI(formData);
       if (res.data.success) {
-        localStorage.setItem("token", res.data.data.token);
-        navigate("/");
+        // ✅ Update context state (PrivateRoute reads this)
+        login(res.data.data.token, res.data.data);
+        navigate("/dashboard", { replace: true });
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Login failed");
-    }
+    } finally { setLoading(false); }
   };
 
   return (
@@ -43,8 +47,9 @@ const Login = () => {
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             required
           />
-          <button type="submit" className="bg-white text-black font-semibold py-3 rounded-lg mt-2">
-            Login
+          <button type="submit" disabled={loading}
+            className="bg-white text-black font-semibold py-3 rounded-lg mt-2 hover:bg-gray-100 transition-all disabled:opacity-70">
+            {loading ? "Logging in…" : "Login"}
           </button>
         </form>
         <p className="mt-4 text-center text-sm">
