@@ -1,0 +1,30 @@
+[
+  {
+    "status": "fulfilled",
+    "url": "https://rnd-model.onrender.com/predict",
+    "value": {
+      "Predicted_RnD_Budget": 410.5649000000001
+    }
+  },
+  {
+    "status": "fulfilled",
+    "url": "https://investment-model-3eho.onrender.com/predict",
+    "value": {
+      "Predicted_Investments": 547.6465000000001
+    }
+  },
+  {
+    "status": "fulfilled",
+    "url": "https://inventory-model.onrender.com/predict",
+    "value": {
+      "Predicted_Inventory_Budget": 1571.861100000001
+    }
+  },
+  {
+    "status": "fulfilled",
+    "url": "https://marketing-api-b0hg.onrender.com/predict",
+    "value": {
+      "Predicted_Marketing_Budget": 607.0326999999997
+    }
+  }
+]

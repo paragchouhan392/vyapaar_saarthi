@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getPortfolio, addPortfolio, deletePortfolio } from "../services/portfolioService";
+import { getPortfolio, createPortfolio, addPortfolioItem, deletePortfolioItem } from "../services/portfolioService";
 import { fmt, pct } from "../utils/format";
 
 const panelStyle = { background: "rgba(0,40,30,0.45)", backdropFilter: "blur(12px)" };
@@ -10,14 +10,18 @@ const inputCls =
   "w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2.5 text-white placeholder-gray-400 focus:outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400 transition-all text-sm";
 
 const Badge = ({ type }) => {
-  const bg = { Stock: "bg-teal-500/20 text-teal-300", Crypto: "bg-purple-500/20 text-purple-300", Bond: "bg-amber-500/20 text-amber-300" };
-  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium border border-white/10 ${bg[type] || ""}`}>{type}</span>;
+  const bg = { 
+    Stock: "bg-teal-500/20 text-teal-300", 
+    Cryptocurrency: "bg-purple-500/20 text-purple-300", 
+    Bond: "bg-amber-500/20 text-amber-300",
+    "Mutual Fund": "bg-blue-500/20 text-blue-300"
+  };
+  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium border border-white/10 ${bg[type] || "bg-gray-500/20 text-gray-300"}`}>{type}</span>;
 };
 
 const Portfolio = () => {
   const [items, setItems]       = useState([]);
-  const [pagination, setPag]    = useState({});
-  const [page, setPage]         = useState(1);
+  const [portfolioId, setPortfolioId] = useState(null);
   const [form, setForm]         = useState(EMPTY_FORM);
   const [loading, setLoading]   = useState(true);
   const [adding, setAdding]     = useState(false);
@@ -25,45 +29,71 @@ const Portfolio = () => {
   const [error, setError]       = useState("");
   const [showForm, setShowForm] = useState(false);
 
-  const load = async (p = 1) => {
+  const load = async () => {
     setLoading(true);
     try {
-      const res = await getPortfolio(p);
-      setItems(res.data.data.items);
-      setPag(res.data.data.pagination);
-    } catch { setError("Failed to load portfolio."); }
-    finally  { setLoading(false); }
+      const res = await getPortfolio();
+      const portfolios = res.data?.data || [];
+      if (portfolios.length > 0) {
+        setPortfolioId(portfolios[0]._id);
+        setItems(portfolios[0].items || []);
+      } else {
+        setPortfolioId(null);
+        setItems([]);
+      }
+    } catch {
+      setError("Failed to load portfolio.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(page); }, [page]);
+  useEffect(() => { load(); }, []);
 
   const handleAdd = async (e) => {
     e.preventDefault();
     setAdding(true); setError("");
     try {
-      await addPortfolio({
-        assetName:      form.assetName,
-        type:           form.type,
-        amountInvested: Number(form.amountInvested),
-        currentValue:   Number(form.currentValue),
-      });
+      let activePid = portfolioId;
+      
+      // If user has no portfolio, create one dynamically first!
+      if (!activePid) {
+        const cr = await createPortfolio({ 
+          portfolioName: "My Portfolio", 
+          totalInvestedAmount: Number(form.amountInvested) 
+        });
+        activePid = cr.data.data._id;
+      }
+
+      await addPortfolioItem(activePid, [{
+        name: form.assetName,
+        assetClass: form.type === "Crypto" ? "Cryptocurrency" : form.type,
+        currentMarketPrice: String(form.currentValue),
+        allocatedAmount: Number(form.amountInvested),
+      }]);
+      
       setForm(EMPTY_FORM);
       setShowForm(false);
-      load(1);
+      load();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add asset.");
     } finally { setAdding(false); }
   };
 
-  const handleDelete = async (id) => {
-    setDeleting(id);
-    try { await deletePortfolio(id); load(page); }
+  const handleDelete = async (itemId) => {
+    if (!portfolioId) return;
+    setDeleting(itemId);
+    try { 
+      await deletePortfolioItem(portfolioId, itemId); 
+      load(); 
+    }
     catch { setError("Failed to delete item."); }
     finally { setDeleting(null); }
   };
 
-  const totalInvested = items.reduce((s, i) => s + i.amountInvested, 0);
-  const totalCurrent  = items.reduce((s, i) => s + i.currentValue, 0);
+  // The new backend calculates these inside the portfolio object itself, but we can compute it on the fly
+  const totalInvested = items.reduce((s, i) => s + (i.allocatedAmount || 0), 0);
+  const totalCurrent  = items.reduce((s, i) => s + (i.currentValue || i.allocatedAmount || 0), 0);
   const totalReturns  = totalCurrent - totalInvested;
 
   return (
@@ -114,6 +144,7 @@ const Portfolio = () => {
               <select className={inputCls} value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
                 <option value="Stock">Stock</option>
                 <option value="Crypto">Crypto</option>
+                <option value="Mutual Fund">Mutual Fund</option>
                 <option value="Bond">Bond</option>
               </select>
             </div>
@@ -145,7 +176,7 @@ const Portfolio = () => {
       <div className="rounded-xl border border-white/10 shadow-lg overflow-hidden" style={panelStyle}>
         <div className="p-5 border-b border-white/10">
           <h3 className="text-white font-semibold">Investment Assets</h3>
-          <p className="text-green-200/50 text-xs mt-0.5">{pagination.total || 0} total assets</p>
+          <p className="text-green-200/50 text-xs mt-0.5">{items.length} total assets</p>
         </div>
         {loading ? (
           <div className="p-8 text-center text-green-200/50 text-sm">Loading portfolio…</div>
@@ -165,14 +196,15 @@ const Portfolio = () => {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {items.map((item) => {
-                  const ret  = item.currentValue - item.amountInvested;
-                  const pctV = pct(item.amountInvested, item.currentValue);
+                  const currentValue = item.currentValue || item.allocatedAmount; // backend default
+                  const ret  = currentValue - item.allocatedAmount;
+                  const pctV = pct(item.allocatedAmount, currentValue);
                   return (
                     <tr key={item._id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-5 py-3 text-white font-medium">{item.assetName}</td>
-                      <td className="px-5 py-3"><Badge type={item.type} /></td>
-                      <td className="px-5 py-3 text-green-100/70">{fmt(item.amountInvested)}</td>
-                      <td className="px-5 py-3 text-teal-300 font-medium">{fmt(item.currentValue)}</td>
+                      <td className="px-5 py-3 text-white font-medium">{item.name}</td>
+                      <td className="px-5 py-3"><Badge type={item.assetClass} /></td>
+                      <td className="px-5 py-3 text-green-100/70">{fmt(item.allocatedAmount)}</td>
+                      <td className="px-5 py-3 text-teal-300 font-medium">{fmt(currentValue)}</td>
                       <td className={`px-5 py-3 font-semibold ${ret >= 0 ? "text-green-300" : "text-red-400"}`}>{fmt(ret)}</td>
                       <td className={`px-5 py-3 font-semibold ${pctV.startsWith("+") ? "text-green-300" : "text-red-400"}`}>{pctV}</td>
                       <td className="px-5 py-3">
@@ -189,17 +221,6 @@ const Portfolio = () => {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="px-5 py-4 border-t border-white/10 flex items-center gap-3">
-            <button onClick={() => setPage(p => Math.max(p - 1, 1))} disabled={page === 1}
-              className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-white/60 hover:bg-white/10 disabled:opacity-40 transition-all">← Prev</button>
-            <span className="text-xs text-green-200/50">Page {pagination.page} of {pagination.totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(p + 1, pagination.totalPages))} disabled={page === pagination.totalPages}
-              className="px-3 py-1.5 rounded-lg text-xs border border-white/10 text-white/60 hover:bg-white/10 disabled:opacity-40 transition-all">Next →</button>
           </div>
         )}
       </div>
