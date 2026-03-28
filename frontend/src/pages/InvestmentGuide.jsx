@@ -67,8 +67,8 @@ const InvestmentGuide = () => {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Investment Guide</h2>
-          <p className="text-green-200/60 text-sm mt-1">AI-powered investment recommendations</p>
+          <h2 className="text-2xl font-bold text-white">AI Business Assistant</h2>
+          <p className="text-green-200/60 text-sm mt-1">AI-powered business guidance</p>
         </div>
         <button onClick={runAnalysis} disabled={analyzing}
           className="flex items-center gap-2 bg-white text-black font-semibold px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition-all disabled:opacity-60">
