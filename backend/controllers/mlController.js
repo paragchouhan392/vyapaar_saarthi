@@ -1,12 +1,12 @@
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const FinancialData = require('../models/FinancialData');
+const User = require('../models/User');
 const InvestmentGuide = require('../models/InvestmentGuide');
 const { sendResponse } = require('../utils/sendResponse');
 
-// Initialize Gemini AI
+// Initialize Gemini AI (gemini-2.0-flash is the latest stable model)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 /**
@@ -45,8 +45,8 @@ Reply in this EXACT JSON format (no extra text):
  */
 const analyzeFinancials = async (req, res, next) => {
   try {
-    const finance = await FinancialData.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
-
+    const finance = await User.findById(req.user._id);
+   console.log(finance);
     if (!finance) {
       return sendResponse(res, 404, false, 'No financial data found. Please submit your financials first via POST /api/finance');
     }
@@ -133,8 +133,8 @@ const getBusinessAssistantRecommendations = async (req, res, next) => {
     }
 
     // Fetch previous financial data
-    let finance = await FinancialData.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
-
+    let finance = await User.findById(req.user._id);
+    console.log(finance);
     if (!finance) {
       // Fallback to empty object instead of erroring out so AI can just use 0's for defaults
       finance = {};
@@ -165,8 +165,9 @@ const getBusinessAssistantRecommendations = async (req, res, next) => {
       )
     );
 
-    const formatResponse = (promiseResult, type, dataKey, previousAmount) => {
+    const formatResponse = async (promiseResult, type, dataKey, previousAmount) => {
       if (promiseResult.status === "fulfilled") {
+        console.log(`[AI] Successfully fetched ${type} data from Python ML model.`);
         const rawAmount = promiseResult.value.data[dataKey] || 0;
         const suggestion = Math.round(Number(rawAmount));
         const prev = Number(previousAmount) || 0;
@@ -193,16 +194,42 @@ const getBusinessAssistantRecommendations = async (req, res, next) => {
           confidence: parseFloat((0.85 + Math.random() * 0.10).toFixed(2)) // 85% - 95%
         };
       } else {
-        console.error(`Error fetching ML model [${type}]:`, promiseResult.reason.message);
-        return { suggestion: null, message: "Model unavailable or timed out.", confidence: 0 };
+        console.warn(`[AI] Error fetching ML model [${type}]: ${promiseResult.reason.message}. Falling back to Gemini...`);
+        try {
+          const prompt = `As an expert AI business assistant, the user's Current Revenue is ₹${payload.Current_Revenue} and their previous ${type} budget was ₹${previousAmount}. Predict a highly optimized budget for ${type} taking into account standard business ratios. Calculate your best estimate and respond with ONLY a single integer number. NO TEXT.`;
+          const result = await model.generateContent(prompt);
+          const suggestionStr = result.response.text().trim().replace(/[^0-9]/g, '');
+          const suggestion = parseInt(suggestionStr) || 0;
+          
+          const prev = Number(previousAmount) || 0;
+          let message = `Maintain your current ${type} budget.`;
+
+          if (suggestion > prev * 1.05) {
+            message = `Increase your ${type} allocation to optimally capture growth (Gemini AI estimated).`;
+          } else if (suggestion < prev * 0.95) {
+            message = `Reduce your ${type} allocation to cut unnecessary costs (Gemini AI estimated).`;
+          } else {
+            message = `Your current ${type} budget is well-optimized (Gemini AI estimated).`;
+          }
+
+          console.log(`[AI] Successfully generated ${type} fallback data using Gemini.`);
+          return {
+            suggestion: suggestion,
+            message: message,
+            confidence: parseFloat((0.75 + Math.random() * 0.10).toFixed(2)) // 75% - 85% fallback confidence
+          };
+        } catch (geminiErr) {
+          console.error(`[AI] Gemini fallback failed for [${type}]:`, geminiErr.message);
+          return { suggestion: null, message: "Models unavailable or timed out.", confidence: 0 };
+        }
       }
     };
 
     const result = {
-      rnd: formatResponse(responses[0], "R&D", "Predicted_RnD_Budget", payload.Prev_RnD_Budget),
-      investment: formatResponse(responses[1], "Investment", "Predicted_Investments", payload.Current_Investments),
-      inventory: formatResponse(responses[2], "Inventory", "Predicted_Inventory_Budget", payload.Current_Inventory),
-      marketing: formatResponse(responses[3], "Marketing", "Predicted_Marketing_Budget", payload.Prev_Marketing_Budget)
+      rnd: await formatResponse(responses[0], "R&D", "Predicted_RnD_Budget", payload.Prev_RnD_Budget),
+      investment: await formatResponse(responses[1], "Investment", "Predicted_Investments", payload.Current_Investments),
+      inventory: await formatResponse(responses[2], "Inventory", "Predicted_Inventory_Budget", payload.Current_Inventory),
+      marketing: await formatResponse(responses[3], "Marketing", "Predicted_Marketing_Budget", payload.Prev_Marketing_Budget)
     };
 
     return sendResponse(res, 200, true, "AI Business Assistant data fetched", result);

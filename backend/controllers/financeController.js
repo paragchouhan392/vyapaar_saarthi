@@ -1,4 +1,4 @@
-const FinancialData    = require('../models/FinancialData');
+const User = require('../models/User');
 const { sendResponse } = require('../utils/sendResponse');
 const { validationResult } = require('express-validator');
 
@@ -20,16 +20,19 @@ const createFinance = async (req, res, next) => {
       investment, debt, operatingCost, cashInHand,
     } = req.body;
 
-    const finance = await FinancialData.create({
-      userId: req.user._id,
-      revenue:         revenue         || 0,
-      marketingBudget: marketingBudget || 0,
-      rndBudget:       rndBudget       || 0,
-      investment:      investment      || 0,
-      debt:            debt            || 0,
-      operatingCost:   operatingCost   || 0,
-      cashInHand:      cashInHand      || 0,
-    });
+    const finance = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        revenue: revenue || 0,
+        marketingBudget: marketingBudget || 0,
+        rndBudget: rndBudget || 0,
+        investment: investment || 0,
+        debt: debt || 0,
+        operatingCost: operatingCost || 0,
+        cashInHand: cashInHand || 0,
+      },
+      { new: true, runValidators: true }
+    );
 
     return sendResponse(res, 201, true, 'Financial data saved successfully', finance);
   } catch (error) {
@@ -44,7 +47,7 @@ const createFinance = async (req, res, next) => {
  */
 const getFinance = async (req, res, next) => {
   try {
-    const finance = await FinancialData.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
+    const finance = await User.findById(req.user._id);
 
     if (!finance) {
       return sendResponse(res, 404, false, 'No financial data found. Please add your financial details.');

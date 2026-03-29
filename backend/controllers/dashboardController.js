@@ -1,6 +1,6 @@
-const FinancialData = require('../models/FinancialData');
-const Portfolio     = require('../models/Portfolio');
-const BalanceSheet  = require('../models/BalanceSheet');
+const User = require('../models/User');
+const Portfolio = require('../models/Portfolio');
+const BalanceSheet = require('../models/BalanceSheet');
 const { sendResponse } = require('../utils/sendResponse');
 
 /**
@@ -14,20 +14,20 @@ const getDashboard = async (req, res, next) => {
 
     // Run all 3 queries in parallel for speed
     const [finance, portfolioItems, balanceSheet] = await Promise.all([
-      FinancialData.findOne({ userId }).sort({ createdAt: -1 }),
+      User.findById(userId),
       Portfolio.find({ userId }),
       BalanceSheet.findOne({ userId }).sort({ createdAt: -1 }),
     ]);
 
     // Portfolio summary
-    const totalInvested    = portfolioItems.reduce((s, p) => s + p.amountInvested, 0);
-    const totalCurrentVal  = portfolioItems.reduce((s, p) => s + p.currentValue, 0);
-    const totalReturns     = totalCurrentVal - totalInvested;
+    const totalInvested = portfolioItems.reduce((s, p) => s + p.amountInvested, 0);
+    const totalCurrentVal = portfolioItems.reduce((s, p) => s + p.currentValue, 0);
+    const totalReturns = totalCurrentVal - totalInvested;
 
     const data = {
       financialSummary: finance || null,
       portfolioSummary: {
-        totalAssets:      portfolioItems.length,
+        totalAssets: portfolioItems.length,
         totalInvested,
         totalCurrentValue: totalCurrentVal,
         totalReturns,
